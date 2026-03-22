@@ -21,7 +21,7 @@ const users = {};
 
 function getCredits(packId) {
   const packs = {
-    pack_10: 1,
+    pack_10: 10,
     pack_25: 25,
     pack_60: 60,
     pack_150: 150,
