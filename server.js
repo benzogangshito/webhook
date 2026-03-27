@@ -46,7 +46,6 @@ function getCredits(packId) {
   writeDb(db);
 
   return db[key].balance;
-}
 
 async function addBalanceViaBotApi(userId, amount) {
   const response = await fetch("https://88f8-77-91-96-208.ngrok-free.app/api/add-balance", {
