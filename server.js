@@ -14,6 +14,7 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
+const BOT_API_BASE = "https://88f8-77-91-96-208.ngrok-free.app";
 
 const orders = [];
 
@@ -27,28 +28,8 @@ function getCredits(packId) {
   return packs[packId] || 0;
 }
 
-  if (typeof db[key].balance !== "number") {
-    db[key].balance = Number(db[key].balance || 0);
-  }
-
-  if (!Array.isArray(db[key].history)) {
-    db[key].history = [];
-  }
-
-  db[key].balance += amount;
-
-  db[key].history.push({
-    type: "card_topup",
-    amount: amount,
-    date: new Date().toISOString().slice(0, 19)
-  });
-
-  writeDb(db);
-
-  return db[key].balance;
-
 async function addBalanceViaBotApi(userId, amount) {
-  const response = await fetch("https://88f8-77-91-96-208.ngrok-free.app/api/add-balance", {
+  const response = await fetch(`${BOT_API_BASE}/api/add-balance`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -58,6 +39,14 @@ async function addBalanceViaBotApi(userId, amount) {
       amount: Number(amount)
     })
   });
+
+  return await response.json();
+}
+
+async function getBalanceViaBotApi(userId) {
+  const response = await fetch(
+    `${BOT_API_BASE}/api/balance?user_id=${encodeURIComponent(userId)}`
+  );
 
   return await response.json();
 }
@@ -100,7 +89,6 @@ app.post("/api/create-order", (req, res) => {
   }
 
   const credits = getCredits(packId);
-
   if (!credits) {
     return res.status(400).json({ error: "invalid pack_id" });
   }
@@ -138,9 +126,19 @@ app.get("/api/order-status", (req, res) => {
   res.json({ status: order.status });
 });
 
-app.get("/api/balance", (req, res) => {
-  const userId = req.query.user_id;
-  res.json({ balance: getBalanceFromDb(userId) });
+app.get("/api/balance", async (req, res) => {
+  try {
+    const userId = req.query.user_id;
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "user_id required" });
+    }
+
+    const data = await getBalanceViaBotApi(userId);
+    res.json(data);
+  } catch (e) {
+    console.error("BALANCE PROXY ERROR:", e);
+    res.status(500).json({ ok: false, balance: 0 });
+  }
 });
 
 app.post("/api/mono-webhook", async (req, res) => {
