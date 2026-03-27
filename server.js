@@ -1,8 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 
@@ -16,7 +14,6 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, "db.json");
 
 const orders = [];
 
@@ -29,57 +26,6 @@ function getCredits(packId) {
   };
   return packs[packId] || 0;
 }
-
-function readDb() {
-  try {
-    if (!fs.existsSync(DB_PATH)) {
-      return {};
-    }
-    const raw = fs.readFileSync(DB_PATH, "utf8");
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    console.error("DB READ ERROR:", e);
-    return {};
-  }
-}
-
-function writeDb(db) {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
-  } catch (e) {
-    console.error("DB WRITE ERROR:", e);
-  }
-}
-
-function addBalanceToDb(userId, amount) {
-  if (!userId || !amount) return 0;
-
-  const db = readDb();
-  const key = String(userId);
-
-  if (!db[key]) {
-    db[key] = {
-      balance: 0,
-      history: [],
-      lang: "ru",
-      achievements: [],
-      favorites: [],
-      streak: 0,
-      last_bonus: null,
-      last_activity: null,
-      referrals_count: 0,
-      referral_earned: 0,
-      referred_by: null,
-      subscription_until: null,
-      banned: false,
-      created: new Date().toISOString().slice(0, 19),
-      balance_frac: 0.0,
-      referral_count: 0,
-      ref_balance_rub: 0.0,
-      welcome_given: false,
-      is_new: false
-    };
-  }
 
   if (typeof db[key].balance !== "number") {
     db[key].balance = Number(db[key].balance || 0);
@@ -102,10 +48,19 @@ function addBalanceToDb(userId, amount) {
   return db[key].balance;
 }
 
-function getBalanceFromDb(userId) {
-  const db = readDb();
-  const key = String(userId);
-  return db[key]?.balance || 0;
+async function addBalanceViaBotApi(userId, amount) {
+  const response = await fetch("https://88f8-77-91-96-208.ngrok-free.app/api/add-balance", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      user_id: Number(userId),
+      amount: Number(amount)
+    })
+  });
+
+  return await response.json();
 }
 
 async function notifyUser(userId, credits) {
@@ -218,11 +173,11 @@ app.post("/api/mono-webhook", async (req, res) => {
   order.status = "paid";
   order.applied = true;
 
-  const newBalance = addBalanceToDb(order.user_id, order.credits);
+  const result = await addBalanceViaBotApi(order.user_id, order.credits);
   await notifyUser(order.user_id, order.credits);
 
   console.log("PAID:", order.id);
-  console.log("NEW DB BALANCE:", newBalance);
+  console.log("BALANCE API RESULT:", result);
 });
 
 app.listen(PORT, () => {
