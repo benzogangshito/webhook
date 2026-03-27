@@ -1,7 +1,8 @@
 const express = require("express");
 const crypto = require("crypto");
-const fetch = require("node-fetch");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
@@ -15,9 +16,9 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
+const DB_PATH = path.join(__dirname, "db.json");
 
 const orders = [];
-const users = {};
 
 function getCredits(packId) {
   const packs = {
@@ -29,10 +30,82 @@ function getCredits(packId) {
   return packs[packId] || 0;
 }
 
-function addBalance(userId, amount) {
-  if (!userId) return;
-  if (!users[userId]) users[userId] = 0;
-  users[userId] += amount;
+function readDb() {
+  try {
+    if (!fs.existsSync(DB_PATH)) {
+      return {};
+    }
+    const raw = fs.readFileSync(DB_PATH, "utf8");
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.error("DB READ ERROR:", e);
+    return {};
+  }
+}
+
+function writeDb(db) {
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+  } catch (e) {
+    console.error("DB WRITE ERROR:", e);
+  }
+}
+
+function addBalanceToDb(userId, amount) {
+  if (!userId || !amount) return 0;
+
+  const db = readDb();
+  const key = String(userId);
+
+  if (!db[key]) {
+    db[key] = {
+      balance: 0,
+      history: [],
+      lang: "ru",
+      achievements: [],
+      favorites: [],
+      streak: 0,
+      last_bonus: null,
+      last_activity: null,
+      referrals_count: 0,
+      referral_earned: 0,
+      referred_by: null,
+      subscription_until: null,
+      banned: false,
+      created: new Date().toISOString().slice(0, 19),
+      balance_frac: 0.0,
+      referral_count: 0,
+      ref_balance_rub: 0.0,
+      welcome_given: false,
+      is_new: false
+    };
+  }
+
+  if (typeof db[key].balance !== "number") {
+    db[key].balance = Number(db[key].balance || 0);
+  }
+
+  if (!Array.isArray(db[key].history)) {
+    db[key].history = [];
+  }
+
+  db[key].balance += amount;
+
+  db[key].history.push({
+    type: "card_topup",
+    amount: amount,
+    date: new Date().toISOString().slice(0, 19)
+  });
+
+  writeDb(db);
+
+  return db[key].balance;
+}
+
+function getBalanceFromDb(userId) {
+  const db = readDb();
+  const key = String(userId);
+  return db[key]?.balance || 0;
 }
 
 async function notifyUser(userId, credits) {
@@ -72,16 +145,23 @@ app.post("/api/create-order", (req, res) => {
     return res.status(400).json({ error: "amount, user_id, pack_id required" });
   }
 
+  const credits = getCredits(packId);
+
+  if (!credits) {
+    return res.status(400).json({ error: "invalid pack_id" });
+  }
+
   const unique = base + Math.floor(Math.random() * 99) / 100;
 
   const order = {
     id: crypto.randomUUID(),
     amount: Number(unique.toFixed(2)),
-    user_id: userId,
-    credits: getCredits(packId),
+    user_id: String(userId),
+    credits,
     pack_id: packId,
     status: "pending",
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    applied: false
   };
 
   orders.push(order);
@@ -96,15 +176,20 @@ app.post("/api/create-order", (req, res) => {
 
 app.get("/api/order-status", (req, res) => {
   const order = orders.find(o => o.id === req.query.id);
-  res.json({ status: order?.status || "not_found" });
+
+  if (!order) {
+    return res.json({ status: "not_found" });
+  }
+
+  res.json({ status: order.status });
 });
 
 app.get("/api/balance", (req, res) => {
   const userId = req.query.user_id;
-  res.json({ balance: users[userId] || 0 });
+  res.json({ balance: getBalanceFromDb(userId) });
 });
 
-app.post("/api/mono-webhook", (req, res) => {
+app.post("/api/mono-webhook", async (req, res) => {
   res.sendStatus(200);
 
   const tx = req.body?.data?.statementItem;
@@ -125,12 +210,19 @@ app.post("/api/mono-webhook", (req, res) => {
     return;
   }
 
+  if (order.applied) {
+    console.log("ORDER ALREADY APPLIED:", order.id);
+    return;
+  }
+
   order.status = "paid";
-  addBalance(order.user_id, order.credits);
-  notifyUser(order.user_id, order.credits);
+  order.applied = true;
+
+  const newBalance = addBalanceToDb(order.user_id, order.credits);
+  await notifyUser(order.user_id, order.credits);
 
   console.log("PAID:", order.id);
-  console.log("BALANCE:", users);
+  console.log("NEW DB BALANCE:", newBalance);
 });
 
 app.listen(PORT, () => {
