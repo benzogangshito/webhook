@@ -14,7 +14,7 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
-const BOT_API_BASE = "https://88f8-77-91-96-208.ngrok-free.app";
+const BOT_API_BASE = "https://ae00-77-91-96-208.ngrok-free.app";
 
 const orders = [];
 
