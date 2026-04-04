@@ -126,6 +126,31 @@ app.get("/api/order-status", (req, res) => {
   res.json({ status: order.status });
 });
 
+async function proxyBotApi(path, payload) {
+  const response = await fetch(`${BOT_API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`bot_api_invalid_json:${text.slice(0, 200)}`);
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data
+  };
+}
+
 app.get("/api/balance", async (req, res) => {
   try {
     const userId = req.query.user_id;
@@ -138,6 +163,48 @@ app.get("/api/balance", async (req, res) => {
   } catch (e) {
     console.error("BALANCE PROXY ERROR:", e);
     res.status(500).json({ ok: false, balance: 0 });
+  }
+});
+
+app.post("/api/create-stars-invoice", async (req, res) => {
+  try {
+    const userId = req.body.user_id;
+    const packId = req.body.pack_id;
+
+    if (!userId || !packId) {
+      return res.status(400).json({ ok: false, error: "user_id and pack_id required" });
+    }
+
+    const result = await proxyBotApi("/api/create-stars-invoice", {
+      user_id: Number(userId),
+      pack_id: String(packId)
+    });
+
+    return res.status(result.status).json(result.data);
+  } catch (e) {
+    console.error("CREATE STARS INVOICE ERROR:", e);
+    return res.status(500).json({ ok: false, error: "stars_invoice_proxy_failed" });
+  }
+});
+
+app.post("/api/create-crypto-invoice", async (req, res) => {
+  try {
+    const userId = req.body.user_id;
+    const packId = req.body.pack_id;
+
+    if (!userId || !packId) {
+      return res.status(400).json({ ok: false, error: "user_id and pack_id required" });
+    }
+
+    const result = await proxyBotApi("/api/create-crypto-invoice", {
+      user_id: Number(userId),
+      pack_id: String(packId)
+    });
+
+    return res.status(result.status).json(result.data);
+  } catch (e) {
+    console.error("CREATE CRYPTO INVOICE ERROR:", e);
+    return res.status(500).json({ ok: false, error: "crypto_invoice_proxy_failed" });
   }
 });
 
