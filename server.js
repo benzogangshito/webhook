@@ -14,7 +14,7 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
-const BOT_API_BASE = "https://cruel-lemons-dig.loca.lt";
+const BOT_API_BASE = "https://large-dragons-invite.loca.lt";
 
 const orders = [];
 
