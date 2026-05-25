@@ -14,16 +14,16 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
-const BOT_API_BASE = "https://plenty-tires-check.loca.lt";
+const BOT_API_BASE = "https://odd-ears-pump.loca.lt";
 
 const orders = [];
 
 function getCredits(packId) {
   const packs = {
-    pack_10: 10,
-    pack_25: 25,
-    pack_60: 60,
-    pack_150: 150,
+    pack_100: 100,
+    pack_250: 250,
+    pack_500: 500,
+    pack_1000: 1000,
   };
   return packs[packId] || 0;
 }
