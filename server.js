@@ -14,7 +14,7 @@ app.use(express.json());
 
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const PORT = process.env.PORT || 3000;
-const BOT_API_BASE = "https://calm-toes-smoke.loca.lt";
+const BOT_API_BASE = "https://plenty-tires-check.loca.lt";
 
 const orders = [];
 
