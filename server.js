@@ -20,10 +20,10 @@ const orders = [];
 
 function getCredits(packId) {
   const packs = {
-    pack_100: 100,
-    pack_250: 250,
-    pack_500: 500,
-    pack_1000: 1000,
+    pack_10: 100,
+    pack_25: 250,
+    pack_60: 500,
+    pack_150: 1000,
   };
   return packs[packId] || 0;
 }
